@@ -4,11 +4,12 @@
   "description": "",
   "main": "main.js",
   "dependencies": {
+    "child-process": "^1.0.2",
     "socket.io-client": "^1.7.2"
   },
   "devDependencies": {},
   "scripts": {
-    "test": "echo 'No tests implemented.'"
+    "start": "C:\\Users\\Reqwey\\AppData\\Roaming\\npm\\supervisor node main.js"
   },
   "repository": {
     "type": "git",

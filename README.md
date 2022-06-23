@@ -10,3 +10,7 @@ $ cd generals.io-Node.js-Bot
 $ npm install
 $ node main.js
 ```
+
+## Example
+
+[This](https://bot.generals.io/replays/rxMQBqZ5c) is the replay of two latest version of ReqwAI bots' battle.

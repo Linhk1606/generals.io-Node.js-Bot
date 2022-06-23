@@ -1,4 +1,4 @@
-# generals.io Node.js Bot
+# ReqwAI for generals.io
 
 This is a bot for [generals.io](http://generals.io). Read the tutorial associated with this bot at [dev.generals.io/api#tutorial](http://dev.generals.io/api#tutorial).
 

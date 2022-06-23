@@ -13,4 +13,4 @@ $ node main.js
 
 ## Example
 
-[This](https://bot.generals.io/replays/rxMQBqZ5c) is the replay of two latest version of ReqwAI bots' battle.
+[This](https://bot.generals.io/replays/rxMQBqZ5c) and [this](https://bot.generals.io/replays/BxbPY9-c9) are the replays of two latest version of ReqwAI bots' battle.

@@ -5,7 +5,7 @@ This is a bot for [generals.io](http://generals.io). Read the tutorial associate
 ## Usage
 
 ```
-$ git clone https://github.com/Linhk1606/generals.io-Node.js-Bot.git
+$ git clone https://github.com/Reqwey/generals.io-Node.js-Bot.git
 $ cd generals.io-Node.js-Bot
 $ npm install
 $ node main.js

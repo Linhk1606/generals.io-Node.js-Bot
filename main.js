@@ -67,11 +67,11 @@ async function joinGame(custom_game_id, user_id) {
 	socket.emit('join_private', custom_game_id, user_id);
 	console.log('\nJoined custom game at https://bot.generals.io/games/' + encodeURIComponent(custom_game_id));
 
-	for (let i = 1; i <= 5; ++i) {
-		await pause();
-		socket.emit('set_force_start', custom_game_id, true);
-		console.log('\nForce Start Hitted');
-	}
+	// for (let i = 1; i <= 5; ++i) {
+	// 	await pause();
+	// 	socket.emit('set_force_start', custom_game_id, true);
+	// 	console.log('\nForce Start Hitted');
+	// }
 
 	// When you're ready, you can have your bot join other game modes.
 	// Here are some examples of how you'D do that:
@@ -140,7 +140,7 @@ async function patch(arr, diff) {
 		if (i < diff.length && diff[i]) {  // mismatching
 			for (let k = 1; k <= diff[i]; ++k)
 				arr[j + k - 1] = diff[k + i];
-			
+
 			j += diff[i];
 			i += diff[i];
 		}
@@ -239,9 +239,7 @@ async function detectThreat() {
 		}
 	}
 	if (select.length) console.log('pos ' + select[0].val + ' ' + select[0].pos);
-	select.sort((a, b) => b.val - a.val);
-	await pause(300);
-	if (select.length) return select[0];
+	if (select.length) return select.sort((a, b) => b.val - a.val)[0];
 	else return -1;
 }
 
@@ -275,26 +273,30 @@ async function startExpand(turn) {
 async function expandLand() {
 	console.log("expand");
 	let select = new Array(), ok = false;
-	let tmp = terrain.map((value, index) => {
-		return { t: value, p: index };
+	let promise = new Promise(async (resolve, reject) => {
+		let tmp = await terrain.mapAsync((value, index) => {
+			return { t: value, p: index };
+		});
+		resolve(tmp.sort(() => Math.random() - 0.5));
 	});
-	tmp.sort(() => Math.random() - 0.5);
-	for (let index = 0; index < tmp.length; ++index) {
-		let t = tmp[index].t, p = tmp[index].p;
-		if (t === TILE_EMPTY) {
-			select.push(p);
-			if (await gatherArmy(QUE_EXPAND_LAND, 1, p) > 1) {
-				ok = true;
-				break;
+	promise.then(async (tmp) => {
+		for (let index = 0; index < tmp.length; ++index) {
+			let t = tmp[index].t, p = tmp[index].p;
+			if (t === TILE_EMPTY && !cities.includes(p)) {
+				select.push(p);
+				if (await gatherArmy(QUE_EXPAND_LAND, 1, p) > 1) {
+					ok = true;
+					break;
+				}
 			}
 		}
-	}
-	if (!ok) {
-		let index = select[Math.floor(Math.random() * select.length)];
-		await gatherArmy(QUE_EXPAND_LAND, 50, index, 1);
-	}
-	socket.emit('attack', workQue[0].fr, workQue[0].to);
-	workQue.shift();
+		if (!ok) {
+			let index = select[Math.floor(Math.random() * select.length)];
+			await gatherArmy(QUE_EXPAND_LAND, 100, index, 1);
+		}
+		socket.emit('attack', workQue[0].fr, workQue[0].to);
+		workQue.shift();
+	});
 }
 
 async function calcDis(a, b) {
@@ -323,7 +325,8 @@ async function attack(enemy, turn) {
 	while (front <= end) {
 		let a = queue[front++];
 		if (a.step >= turn || Math.floor(a.pos / width) == 0 || Math.ceil(a.pos / width) == height - 1 || a.pos % width == 0 || a.pos % width == width - 1) {
-			if (!visited.includes(a.pos) && await calcDir(enemy, a.pos, enemyDir)) border.push(a), console.log('%d is in selection.', a.pos);
+			if (!(visited[a.pos] >= 0) && await calcDir(enemy, a.pos, enemyDir)) border.push(a), console.log('%d is in selection.', a.pos);
+			if (a.step > turn) break;
 		}
 		for (let d of D) {
 			let b = a.pos + d;
@@ -389,17 +392,17 @@ socket.on('game_update', async (data) => {
 	if (enemyHomeFound == -1 && enemyDetected != -1) {
 		let h = generals[enemyDetected];
 		if (h != -1) {
-			if (terrain[h] == playerIndex || data.scores[enemyDetected].dead) {
-				console.log("\n" + enemyDetected + " died.");
-				enemyDetected = -1;
-				enemyHomeFound = -1;
-			}
 			console.log("\n" + enemyDetected + "'s home in vision");
 			enemyHomeFound = h;
 			workQue = [];
 			await gatherArmy(QUE_ATTACK_HOME, 114514, h, armies[h] + 1);
 			return;
 		}
+	} else if (enemyDetected != -1 && enemyHomeFound >= 0 && data.scores[enemyDetected].dead) {
+		console.log("\n" + enemyDetected + " died.");
+		enemyDetected = -1;
+		enemyHomeFound = -1;
+		workQue = [];
 	}
 
 	if (data.turn == 1) {
@@ -431,7 +434,7 @@ socket.on('game_update', async (data) => {
 			for (let a of cities) {
 				if (armies[a] < minArmy) minArmy = armies[a], minPos = a;
 			}
-			await gatherArmy(QUE_EXPAND_CITY, 50, minPos, minArmy + 1);
+			await gatherArmy(QUE_EXPAND_CITY, 100, minPos, minArmy + 1);
 			attackCity = true;
 		}
 	}
@@ -444,34 +447,44 @@ socket.on('game_update', async (data) => {
 	// Attack
 	if (enemyDetected != -1) {
 		if (!enemyDetectTurn) enemyDetectTurn = data.turn;
-		await attack(enemyPos, 10);
+		await attack(enemyPos, 30);
 		enemyDetected = -1;
 		return;
 	} else {
 		try {
-			await terrain.forEachAsync(async (x, i) => {
-				if (x >= 0 && x != playerIndex && !cheatArr.includes(x)) {
-					// console.log('\nEnemy " + x + ` detected on pos (${Math.floor(i / width) + 1}, ${i % width + 1})`);
-					await gatherArmy(QUE_ATTACK_GATHER, 50, i);
-					enemyDir = 0;
-					if (terrain[i - width] != playerIndex && terrain[i - width] != TILE_MOUNTAIN && terrain[i - width] != TILE_EMPTY) enemyDir |= UP;
-					if (terrain[i + 1] != playerIndex && terrain[i + 1] != TILE_MOUNTAIN && terrain[i + 1] != TILE_EMPTY) enemyDir |= RIGHT;
-					if (terrain[i + width] != playerIndex && terrain[i + width] != TILE_MOUNTAIN && terrain[i + width] != TILE_EMPTY) enemyDir |= DOWN;
-					if (terrain[i - 1] != playerIndex && terrain[i - 1] != TILE_MOUNTAIN && terrain[i - 1] != TILE_EMPTY) enemyDir |= LEFT;
-					if (enemyDir & LEFT && enemyDir & RIGHT) {
-						if (Math.random() > 0.5) enemyDir ^= LEFT;
-						else enemyDir ^= RIGHT;
-					}
-					if (enemyDir & UP && enemyDir & DOWN) {
-						if (Math.random() > 0.5) enemyDir ^= UP;
-						else enemyDir ^= DOWN;
-					}
-					enemyDetected = x;
-					enemyPos = i;
-					lastPos = i;
-					throw 'Found enemy ' + x;
-				}
+			let promise = new Promise(function (resolve, reject) {
+				let tmp = terrain.map((value, index) => {
+					return { t: value, p: index };
+				});
+				resolve(tmp.sort(() => Math.random() - 0.5));
 			});
+			promise.then(async (tmp) => {
+				await tmp.forEachAsync(async (a) => {
+					let x = a.t, i = a.p;
+					if (x >= 0 && x != playerIndex && !cheatArr.includes(x)) {
+						// console.log('\nEnemy " + x + ` detected on pos (${Math.floor(i / width) + 1}, ${i % width + 1})`);
+						await gatherArmy(QUE_ATTACK_GATHER, 100, i);
+						enemyDir = 0;
+						if (terrain[i - width] != playerIndex && terrain[i - width] != TILE_MOUNTAIN && terrain[i - width] != TILE_EMPTY) enemyDir |= UP;
+						if (terrain[i + 1] != playerIndex && terrain[i + 1] != TILE_MOUNTAIN && terrain[i + 1] != TILE_EMPTY) enemyDir |= RIGHT;
+						if (terrain[i + width] != playerIndex && terrain[i + width] != TILE_MOUNTAIN && terrain[i + width] != TILE_EMPTY) enemyDir |= DOWN;
+						if (terrain[i - 1] != playerIndex && terrain[i - 1] != TILE_MOUNTAIN && terrain[i - 1] != TILE_EMPTY) enemyDir |= LEFT;
+						if (enemyDir & LEFT && enemyDir & RIGHT) {
+							if (Math.random() > 0.5) enemyDir ^= LEFT;
+							else enemyDir ^= RIGHT;
+						}
+						if (enemyDir & UP && enemyDir & DOWN) {
+							if (Math.random() > 0.5) enemyDir ^= UP;
+							else enemyDir ^= DOWN;
+						}
+						enemyDetected = x;
+						enemyPos = i;
+						lastPos = i;
+						throw 'Found enemy ' + x;
+					}
+				});
+			});
+
 		} catch (e) {
 			console.log(e);
 			return;
